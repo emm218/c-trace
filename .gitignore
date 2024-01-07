@@ -1,0 +1,8 @@
+# output
+*.o
+.depend
+c-trace
+
+# test artifacts
+log
+*.png
