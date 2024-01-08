@@ -1,7 +1,9 @@
 # output
 *.o
-.depend
 c-trace
+keywords.c
+.depend
+.cache
 
 # test artifacts
 log
