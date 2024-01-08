@@ -1,0 +1,22 @@
+%{
+#include "token.h"   
+%}
+%includes
+%compare-strncmp
+%define lookup-function-name get_keyword
+%struct-type
+struct keyword_set;
+%%
+light,    { .type = KEYWORD, .data.k = LIGHT }
+camera,   { .type = KEYWORD, .data.k = CAMERA }
+material, { .type = KEYWORD, .data.k = MATERIAL }
+rgb,       { .type = COLOR_TYPE, .data.c = RGB }
+blackbody, { .type = COLOR_TYPE, .data.c = BLACKBODY }
+diffuse,    { .type = MATERIAL_TYPE, .data.m = DIFFUSE }
+dielectric, { .type = MATERIAL_TYPE, .data.m = DIELECTRIC }
+emissive,   { .type = MATERIAL_TYPE, .data.m = EMISSIVE }
+ambient,     { .type = LIGHT_TYPE, .data.l = AMBIENT }
+directional, { .type = LIGHT_TYPE, .data.l = DIRECTIONAL }
+point,       { .type = LIGHT_TYPE, .data.l = POINT }
+plane,  { .type = SHAPE_TYPE, .data.s = PLANE }
+sphere, { .type = SHAPE_TYPE, .data.s = SPHERE }

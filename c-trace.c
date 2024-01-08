@@ -6,6 +6,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "scene.h"
+
 #define VERSION "0.1"
 
 #define DEFAULT_WIDTH	    640
@@ -45,7 +47,7 @@ main(int argc, char **argv)
 	int c, opt_idx, samples, max_bounces;
 	long x, y, width, height;
 	pixel *row;
-	FILE *world_file;
+	FILE *input;
 
 	prog_name = argv[0];
 	samples_str = NULL;
@@ -148,7 +150,7 @@ parse_samples:
 		fprintf(stderr, "%s: samples out of range\n", argv[0]);
 		goto fail;
 	}
-	if (width <= 0) {
+	if (samples <= 0) {
 		fprintf(stderr, "%s: samples must be greater than 0\n",
 		    argv[0]);
 		goto fail;
@@ -168,7 +170,7 @@ parse_bounces:
 		fprintf(stderr, "%s: bounces out of range\n", argv[0]);
 		goto fail;
 	}
-	if (width <= 0) {
+	if (max_bounces <= 0) {
 		fprintf(stderr, "%s: bounces must be greater than 0\n",
 		    argv[0]);
 		goto fail;
@@ -176,14 +178,20 @@ parse_bounces:
 done:
 	errno = 0;
 	if (optind == argc || strcmp(argv[optind], "-") == 0) {
-		world_file = stdin;
-	} else if ((world_file = fopen(argv[optind], "r")) == NULL) {
+		input = stdin;
+	} else if ((input = fopen(argv[optind], "r")) == NULL) {
 		perror(argv[0]);
 		return 1;
 	}
 
-	if (world_file != stdin)
-		fclose(world_file);
+	if (load_scene(input, (float)width / (float)height) != 0) {
+		if (input != stdin)
+			fclose(input);
+		return 1;
+	}
+
+	if (input != stdin)
+		fclose(input);
 
 	if ((row = malloc(sizeof(*row) * width)) == NULL)
 		return 1; // oh nooooo

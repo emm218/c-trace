@@ -1,0 +1,57 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/clang",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-Wno-missing-field-initializers",
+      "-Iinclude",
+      "-g",
+      "-c",
+      "-o",
+      "c-trace.o",
+      "c-trace.c"
+    ],
+    "directory": "/home/anon/projects/c-trace",
+    "file": "/home/anon/projects/c-trace/c-trace.c",
+    "output": "/home/anon/projects/c-trace/c-trace.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/clang",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-Wno-missing-field-initializers",
+      "-Iinclude",
+      "-g",
+      "-c",
+      "-o",
+      "scene.o",
+      "scene.c"
+    ],
+    "directory": "/home/anon/projects/c-trace",
+    "file": "/home/anon/projects/c-trace/scene.c",
+    "output": "/home/anon/projects/c-trace/scene.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/clang",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-Wno-missing-field-initializers",
+      "-Iinclude",
+      "-g",
+      "-Wno-unused-parameter",
+      "-c",
+      "-o",
+      "keywords.o",
+      "keywords.c"
+    ],
+    "directory": "/home/anon/projects/c-trace",
+    "file": "/home/anon/projects/c-trace/keywords.c",
+    "output": "/home/anon/projects/c-trace/keywords.o"
+  }
+]
