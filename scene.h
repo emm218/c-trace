@@ -24,6 +24,12 @@ typedef enum {
 	POINT,
 } light_type;
 
+typedef struct {
+	light_type type;
+	color color;
+	vec data;
+} light;
+
 typedef enum {
 	RGB,
 	BLACKBODY,
@@ -41,12 +47,6 @@ typedef enum {
 } shape_type;
 
 typedef struct {
-	shape_type type;
-	material *material;
-	char data[];
-} shape;
-
-typedef struct {
 	vec normal;
 	float d;
 } plane;
@@ -57,6 +57,15 @@ typedef struct {
 } sphere;
 
 typedef struct {
+	shape_type type;
+	material *material;
+	union {
+		plane p;
+		sphere s;
+	};
+} shape;
+
+typedef struct {
 	vec normal;
 	material *material;
 	float t;
@@ -64,6 +73,10 @@ typedef struct {
 
 struct scene {
 	camera camera;
+	color ambient_light;
+	light lights[4];
+	shape shapes[4];
+	size_t cur_light, cur_shape;
 };
 
 extern struct scene scene;

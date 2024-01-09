@@ -7,16 +7,16 @@
 %struct-type
 struct keyword_set;
 %%
-light,    { .type = KEYWORD, .data.k = LIGHT }
-camera,   { .type = KEYWORD, .data.k = CAMERA }
-material, { .type = KEYWORD, .data.k = MATERIAL }
-rgb,       { .type = COLOR_TYPE, .data.c = RGB }
-blackbody, { .type = COLOR_TYPE, .data.c = BLACKBODY }
-diffuse,    { .type = MATERIAL_TYPE, .data.m = DIFFUSE }
-dielectric, { .type = MATERIAL_TYPE, .data.m = DIELECTRIC }
-emissive,   { .type = MATERIAL_TYPE, .data.m = EMISSIVE }
-ambient,     { .type = LIGHT_TYPE, .data.l = AMBIENT }
-directional, { .type = LIGHT_TYPE, .data.l = DIRECTIONAL }
-point,       { .type = LIGHT_TYPE, .data.l = POINT }
-plane,  { .type = SHAPE_TYPE, .data.s = PLANE }
-sphere, { .type = SHAPE_TYPE, .data.s = SPHERE }
+light,    { .type = KEYWORD, .k = LIGHT }
+camera,   { .type = KEYWORD, .k = CAMERA }
+material, { .type = KEYWORD, .k = MATERIAL }
+rgb,       { .type = COLOR_TYPE, .c = RGB }
+blackbody, { .type = COLOR_TYPE, .c = BLACKBODY }
+diffuse,    { .type = MATERIAL_TYPE, .m = DIFFUSE }
+dielectric, { .type = MATERIAL_TYPE, .m = DIELECTRIC }
+emissive,   { .type = MATERIAL_TYPE, .m = EMISSIVE }
+ambient,     { .type = LIGHT_TYPE, .l = AMBIENT }
+directional, { .type = LIGHT_TYPE, .l = DIRECTIONAL }
+point,       { .type = LIGHT_TYPE, .l = POINT }
+plane,  { .type = SHAPE_TYPE, .s = PLANE }
+sphere, { .type = SHAPE_TYPE, .s = SPHERE }

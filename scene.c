@@ -7,18 +7,24 @@
 #include "token.h"
 
 static int parse_camera(camera *, float);
+static int parse_light(void);
+static int parse_color(color *);
 static int parse_vec(vec);
+
+#define TODO()                      \
+	fprintf(stderr, "todo!\n"); \
+	return 1;
 
 #define BUF_SIZE 4096
 
 static const char *token_types[] = {
-	"(",
-	")",
+	"'('",
+	"')'",
 	"KEYWORD",
-	"SHAPE_TYPE",
-	"LIGHT_TYPE",
-	"MATERIAL_TYPE",
-	"COLOR_TYPE",
+	"a shape type",
+	"a light type",
+	"a material type",
+	"a color type",
 	"NUMBER",
 	"EOF",
 	"ERROR",
@@ -116,7 +122,7 @@ loop:
 		CONSUME_WHILE(isnumeric(*cur));
 		ret = (token) { NUMBER };
 		errno = 0;
-		ret.data.f = strtof(tok, &end);
+		ret.f = strtof(tok, &end);
 		if (errno) {
 			fprintf(stderr, "%s: error on line %zu: %s\n",
 			    prog_name, line, strerror(errno));
@@ -142,12 +148,12 @@ loop:
 	return (token) { ERROR };
 }
 
-#define CONSUME(t)                                                       \
-	if (next_token().type != (t)) {                                  \
-		*cur = 0;                                                \
-		fprintf(stderr, "%s: expected %s on line %zu, got %s\n", \
-		    prog_name, token_types[t], line, tok);               \
-		return 1;                                                \
+#define CONSUME(ty)                                                        \
+	if ((t = next_token()).type != (ty)) {                             \
+		*cur = 0;                                                  \
+		fprintf(stderr, "%s: expected %s on line %zu, got '%s'\n", \
+		    prog_name, token_types[ty], line, tok);                \
+		return 1;                                                  \
 	}
 
 #define PARSE(f, ...)                      \
@@ -156,7 +162,7 @@ loop:
 	}
 
 #define CONSUME_FLOAT()                                              \
-	(t = next_token()).data.f;                                   \
+	(t = next_token()).f;                                        \
 	if (t.type != NUMBER) {                                      \
 		*cur = 0;                                            \
 		fprintf(stderr,                                      \
@@ -173,23 +179,53 @@ load_scene(FILE *in, float aspect_ratio)
 
 	input = in;
 
+	scene.ambient_light.r = INFINITY;
+	scene.ambient_light.g = INFINITY;
+	scene.ambient_light.b = INFINITY;
+
+	scene.cur_light = 0;
+	scene.cur_shape = 0;
+loop:
 	switch ((t = next_token()).type) {
 	case KEYWORD:
-		switch (t.data.k) {
+		switch (t.k) {
 		case CAMERA:
 			PARSE(camera, &scene.camera, aspect_ratio);
+			break;
 		case LIGHT:
+			PARSE(light);
+			break;
 		case MATERIAL:
-			return 1;
+			// TODO: actual materials handling
+			CONSUME(MATERIAL_TYPE);
+			break;
 		}
+		break;
 	case SHAPE_TYPE:
+		switch (t.s) {
+		case PLANE:
+			PARSE(vec, scene.shapes[scene.cur_shape].p.normal);
+			scene.shapes[scene.cur_shape].p.d = CONSUME_FLOAT();
+			break;
+		case SPHERE:
+			PARSE(vec, scene.shapes[scene.cur_shape].s.center);
+			scene.shapes[scene.cur_shape].s.r = CONSUME_FLOAT();
+			break;
+		}
+		scene.cur_shape++;
+		break;
 	default:
+		*cur = 0;
+		fprintf(stderr,
+		    "%s: on line %zu expected a keyword"
+		    " (light, material, camera) or a shape type, got '%s'\n",
+		    prog_name, line, tok);
 		return 1;
 	case END:
 		return 0;
 	}
 
-	return 0;
+	goto loop;
 }
 
 static int
@@ -197,8 +233,6 @@ parse_camera(camera *out, float aspect_ratio)
 {
 	vec look, look_at, up;
 	float fov, vw, vh;
-
-	(void)out;
 
 	PARSE(vec, out->eye);
 	PARSE(vec, look_at);
@@ -218,11 +252,47 @@ parse_camera(camera *out, float aspect_ratio)
 	glm_vec3_cross(look, out->down, out->right);
 	glm_vec4_scale_as(out->right, vw, out->right);
 
-	fprintf(stderr, "(%f %f %f)\n", out->down[0], out->down[1],
-	    out->down[2]);
-	fprintf(stderr, "(%f %f %f)\n", out->right[0], out->right[1],
-	    out->right[2]);
+	return 0;
+}
 
+static int
+parse_light()
+{
+	CONSUME(LIGHT_TYPE);
+	switch (t.l) {
+	case AMBIENT:
+		if (scene.ambient_light.r != INFINITY) {
+			fprintf(stderr,
+			    "%s: second ambient light declaration on line %zu\n",
+			    prog_name, line);
+			return 1;
+		}
+		PARSE(color, &scene.ambient_light);
+		break;
+	case DIRECTIONAL:
+	case POINT:
+		scene.lights[scene.cur_light].type = t.l;
+		PARSE(vec, scene.lights[scene.cur_light].data);
+		PARSE(color, &scene.lights[scene.cur_light].color);
+		scene.cur_light++;
+		break;
+	}
+	return 0;
+}
+
+static int
+parse_color(color *out)
+{
+	CONSUME(COLOR_TYPE);
+	switch (t.c) {
+	case RGB:
+		out->r = CONSUME_FLOAT();
+		out->g = CONSUME_FLOAT();
+		out->b = CONSUME_FLOAT();
+		break;
+	case BLACKBODY:
+		TODO();
+	}
 	return 0;
 }
 

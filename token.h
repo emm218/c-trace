@@ -29,7 +29,7 @@ typedef struct {
 		light_type l;
 		color_type c;
 		material_type m;
-	} data;
+	};
 } token;
 
 struct keyword_set {
