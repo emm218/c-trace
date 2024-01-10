@@ -22,6 +22,9 @@ typedef struct {
 void usage(FILE *);
 void png_error_handler(png_structp, png_const_charp);
 int write_png_init(long, long);
+static float rad_inverse(unsigned int);
+static color ray_color(ray *, int);
+static void color_2_pixel(color *, pixel *);
 
 char *prog_name;
 
@@ -45,13 +48,19 @@ main(int argc, char **argv)
 {
 	char *cur, *end, *geom_str, *samples_str, *bounce_str;
 	int c, opt_idx, samples, max_bounces;
+	unsigned int i;
 	long x, y, width, height;
+	float u, v;
+	ray ray;
+	color rc, pc;
 	pixel *row;
 	FILE *input;
 
 	prog_name = argv[0];
 	samples_str = NULL;
 	geom_str = NULL;
+	bounce_str = NULL;
+	samples_str = NULL;
 	opt_idx = 0;
 
 	while ((c = getopt_long(argc, argv, "hvs:g:b:", long_opts, &opt_idx)) !=
@@ -199,11 +208,33 @@ done:
 	write_png_init(width, height);
 
 	(void)max_bounces;
-	(void)samples;
+
+	glm_vec4_copy(scene.camera.eye, ray.origin);
 
 	for (y = 0; y < height; y++) {
 		for (x = 0; x < width; x++) {
-			row[x] = (pixel) { 0, 0, 0 };
+			pc = (color) { 0.0, 0.0, 0.0 };
+			for (i = 0; i < (unsigned int)samples; i++) {
+				u = (float)x;
+				u += (float)i / (float)samples;
+				v = (float)y;
+				v += rad_inverse(i);
+
+				u /= (float)width;
+				v /= (float)height;
+
+				glm_vec4_copy(scene.camera.upper_left, ray.d);
+				glm_vec4_muladds(scene.camera.right, u, ray.d);
+				glm_vec4_muladds(scene.camera.down, v, ray.d);
+				glm_vec4_sub(ray.d, ray.origin, ray.d);
+
+				rc = ray_color(&ray, max_bounces);
+				glm_vec4_add((float *)&rc, (float *)&pc,
+				    (float *)&pc);
+			}
+			glm_vec4_divs((float *)&pc, (float)samples,
+			    (float *)&pc);
+			color_2_pixel(&pc, &row[x]);
 		}
 		png_write_row(png_ptr, (unsigned char *)row);
 	}
@@ -215,6 +246,67 @@ done:
 fail:
 	usage(stderr);
 	return 1;
+}
+
+static float
+rad_inverse(unsigned int n)
+{
+	unsigned int rev;
+	n = (((n & 0xaaaaaaaa) >> 1) | ((n & 0x55555555) << 1));
+	n = (((n & 0xcccccccc) >> 2) | ((n & 0x33333333) << 2));
+	n = (((n & 0xf0f0f0f0) >> 4) | ((n & 0x0f0f0f0f) << 4));
+	n = (((n & 0xff00ff00) >> 8) | ((n & 0x00ff00ff) << 8));
+	rev = (n >> 16) | (n << 16);
+
+	return (float)rev / (float)UINT_MAX;
+}
+
+static void
+color_2_pixel(color *color, pixel *out)
+{
+	glm_vec4_clamp((float *)color, 0.0, 1.0);
+	// out->r = sqrt(color.r) * 255;
+	// out->g = sqrt(color.g) * 255;
+	// out->b = sqrt(color.b) * 255;
+	out->r = color->r * 255;
+	out->g = color->g * 255;
+	out->b = color->b * 255;
+}
+
+static color
+ray_color(ray *ray, int bounces)
+{
+	int res;
+	float t_min;
+	size_t i;
+	hit_info cur, best;
+
+	(void)bounces;
+
+	t_min = INFINITY;
+
+	for (i = 0; i < scene.cur_shape; i++) {
+		switch (scene.shapes[i].type) {
+		case SPHERE:
+			res = hit_sphere(&scene.shapes[i].s, ray, &cur);
+			break;
+		case PLANE:
+			res = hit_plane(&scene.shapes[i].p, ray, &cur);
+			break;
+		}
+		if (res) {
+			if (cur.t < t_min) {
+				t_min = cur.t;
+				best = cur;
+			}
+		}
+	}
+
+	if (t_min == INFINITY)
+		return scene.ambient_light;
+
+	return (color) { 0.5 * best.normal[0] + 0.5, 0.5 * best.normal[1] + 0.5,
+		0.5 * best.normal[2] + 0.5 };
 }
 
 int

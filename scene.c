@@ -17,6 +17,8 @@ static int parse_vec(vec);
 
 #define BUF_SIZE 4096
 
+const float epsilon = 0.0001f;
+
 static const char *token_types[] = {
 	"'('",
 	"')'",
@@ -202,10 +204,16 @@ loop:
 		}
 		break;
 	case SHAPE_TYPE:
+		scene.shapes[scene.cur_shape].type = t.s;
 		switch (t.s) {
 		case PLANE:
 			PARSE(vec, scene.shapes[scene.cur_shape].p.normal);
+			glm_vec4_normalize(
+			    scene.shapes[scene.cur_shape].p.normal);
 			scene.shapes[scene.cur_shape].p.d = CONSUME_FLOAT();
+			glm_vec4_scale(scene.shapes[scene.cur_shape].p.normal,
+			    scene.shapes[scene.cur_shape].p.d,
+			    scene.shapes[scene.cur_shape].p.center);
 			break;
 		case SPHERE:
 			PARSE(vec, scene.shapes[scene.cur_shape].s.center);
@@ -242,8 +250,8 @@ parse_camera(camera *out, float aspect_ratio)
 
 	glm_vec4_sub(look_at, out->eye, look);
 
-	vw = fabsf(atanf(fov / 2.0)) * glm_vec4_norm(look) * 2.0;
-	vh = vw / aspect_ratio;
+	vh = fabsf(atanf(fov / 2.0)) * glm_vec4_norm(look) * 2.0;
+	vw = vh * aspect_ratio;
 
 	glm_vec3_proj(up, look, out->down);
 	glm_vec4_sub(out->down, up, out->down);
@@ -251,6 +259,10 @@ parse_camera(camera *out, float aspect_ratio)
 
 	glm_vec3_cross(look, out->down, out->right);
 	glm_vec4_scale_as(out->right, vw, out->right);
+
+	glm_vec4_copy(look_at, out->upper_left);
+	glm_vec4_mulsubs(out->down, 0.5, out->upper_left);
+	glm_vec4_mulsubs(out->right, 0.5, out->upper_left);
 
 	return 0;
 }
@@ -304,5 +316,44 @@ parse_vec(vec out)
 	out[1] = CONSUME_FLOAT();
 	out[2] = CONSUME_FLOAT();
 	CONSUME(RPAREN);
+	return 0;
+}
+
+int
+hit_sphere(const sphere *sphere, const ray *ray, hit_info *out)
+{
+	vec4 oc, hit;
+	float a, half_b, c, discriminant;
+
+	glm_vec4_sub((float *)ray->origin, (float *)sphere->center, oc);
+	a = glm_vec4_norm2((float *)ray->d);
+	half_b = glm_vec4_dot(oc, (float *)ray->d);
+	c = glm_vec4_norm2(oc) - sphere->r * sphere->r;
+	discriminant = half_b * half_b - a * c;
+
+	out->t = (-half_b - sqrtf(discriminant)) / a;
+	glm_vec4_copy((float *)ray->origin, hit);
+	glm_vec4_muladds((float *)ray->d, out->t, hit);
+	glm_vec4_sub(hit, (float *)sphere->center, out->normal);
+	glm_vec4_normalize(out->normal);
+
+	return discriminant >= 0.0;
+}
+
+int
+hit_plane(const plane *plane, const ray *ray, hit_info *out)
+{
+	vec oc;
+	float d;
+
+	d = glm_vec4_dot((float *)plane->normal, (float *)ray->d);
+
+	if (fabsf(d) > epsilon) {
+		glm_vec4_sub((float *)plane->center, (float *)ray->origin, oc);
+		out->t = glm_vec4_dot(oc, (float *)plane->normal) / d;
+		glm_vec4_copy((float *)plane->normal, out->normal);
+		return out->t >= 0;
+	}
+
 	return 0;
 }

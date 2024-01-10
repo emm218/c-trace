@@ -4,11 +4,13 @@
 #include <cglm/cglm.h>
 #include <stdio.h>
 
+#define PRINT_VEC(s, v) fprintf(stderr, s "(%f %f %f)\n", v[0], v[1], v[2])
+
 typedef vec4 vec;
 
 typedef struct {
 	float r, g, b;
-} color;
+} __attribute__((aligned(16))) color;
 
 typedef struct {
 	char *meow;
@@ -48,6 +50,7 @@ typedef enum {
 
 typedef struct {
 	vec normal;
+	vec center;
 	float d;
 } plane;
 
@@ -66,6 +69,11 @@ typedef struct {
 } shape;
 
 typedef struct {
+	vec d;
+	vec origin;
+} ray;
+
+typedef struct {
 	vec normal;
 	material *material;
 	float t;
@@ -82,5 +90,7 @@ struct scene {
 extern struct scene scene;
 
 int load_scene(FILE *, float);
+int hit_sphere(const sphere *, const ray *, hit_info *);
+int hit_plane(const plane *, const ray *, hit_info *);
 
 #endif /* SCENE_H */
