@@ -8,7 +8,7 @@ debug: CFLAGS+=-g
 debug: c-trace
 
 release: CFLAGS+=-O2
-release: clean c-trace
+release: clean keywords.c c-trace
 
 c-trace: $(SRC:.c=.o) keywords.o
 

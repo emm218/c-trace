@@ -27,7 +27,7 @@ static const char *token_types[] = {
 	"a light type",
 	"a material type",
 	"a color type",
-	"NUMBER",
+	"a number",
 	"EOF",
 	"ERROR",
 };
@@ -38,7 +38,7 @@ static char buf[BUF_SIZE], *tok, *cur, *lim;
 static int eof;
 static size_t line;
 static FILE *input;
-static token t;
+static token t, prev_token;
 
 struct scene scene;
 
@@ -95,6 +95,13 @@ next_token()
 	char *end;
 	token ret;
 	struct keyword_set *kw;
+
+	if (prev_token.type != ERROR) {
+		ret = prev_token;
+		prev_token.type = ERROR;
+		return ret;
+	}
+
 loop:
 	if (cur == lim) {
 		if (eof) {
@@ -152,10 +159,20 @@ loop:
 
 #define CONSUME(ty)                                                        \
 	if ((t = next_token()).type != (ty)) {                             \
+		if (t.type == ERROR)                                       \
+			return 1;                                          \
 		*cur = 0;                                                  \
 		fprintf(stderr, "%s: expected %s on line %zu, got '%s'\n", \
 		    prog_name, token_types[ty], line, tok);                \
 		return 1;                                                  \
+	}
+
+#define CONSUME_OPTIONAL(ty)                   \
+	if ((t = next_token()).type != (ty)) { \
+		if (t.type == ERROR)           \
+			return 1;              \
+		prev_token = t;                \
+		return 0;                      \
 	}
 
 #define PARSE(f, ...)                      \
@@ -166,11 +183,22 @@ loop:
 #define CONSUME_FLOAT()                                              \
 	(t = next_token()).f;                                        \
 	if (t.type != NUMBER) {                                      \
+		if (t.type == ERROR)                                 \
+			return 1;                                    \
 		*cur = 0;                                            \
 		fprintf(stderr,                                      \
 		    "%s: on line %zu expected a number, got '%s'\n", \
 		    prog_name, line, tok);                           \
 		return 1;                                            \
+	}
+
+#define CONSUME_FLOAT_OPTIONAL()     \
+	(t = next_token()).f;        \
+	if (t.type != NUMBER) {      \
+		if (t.type == ERROR) \
+			return 1;    \
+		prev_token = t;      \
+		return 0;            \
 	}
 int
 load_scene(FILE *in, float aspect_ratio)
@@ -180,6 +208,8 @@ load_scene(FILE *in, float aspect_ratio)
 	line = 1;
 
 	input = in;
+
+	prev_token.type = ERROR;
 
 	scene.ambient_light.r = INFINITY;
 	scene.ambient_light.g = INFINITY;
@@ -228,6 +258,7 @@ loop:
 		    "%s: on line %zu expected a keyword"
 		    " (light, material, camera) or a shape type, got '%s'\n",
 		    prog_name, line, tok);
+	case ERROR:
 		return 1;
 	case END:
 		return 0;
@@ -322,7 +353,7 @@ parse_vec(vec out)
 int
 hit_sphere(const sphere *sphere, const ray *ray, hit_info *out)
 {
-	vec4 oc, hit;
+	vec oc;
 	float a, half_b, c, discriminant;
 
 	glm_vec4_sub((float *)ray->origin, (float *)sphere->center, oc);
@@ -332,12 +363,12 @@ hit_sphere(const sphere *sphere, const ray *ray, hit_info *out)
 	discriminant = half_b * half_b - a * c;
 
 	out->t = (-half_b - sqrtf(discriminant)) / a;
-	glm_vec4_copy((float *)ray->origin, hit);
-	glm_vec4_muladds((float *)ray->d, out->t, hit);
-	glm_vec4_sub(hit, (float *)sphere->center, out->normal);
+	glm_vec4_copy((float *)ray->origin, out->p);
+	glm_vec4_muladds((float *)ray->d, out->t, out->p);
+	glm_vec4_sub(out->p, (float *)sphere->center, out->normal);
 	glm_vec4_normalize(out->normal);
 
-	return discriminant >= 0.0;
+	return discriminant > 0.0;
 }
 
 int
@@ -352,8 +383,38 @@ hit_plane(const plane *plane, const ray *ray, hit_info *out)
 		glm_vec4_sub((float *)plane->center, (float *)ray->origin, oc);
 		out->t = glm_vec4_dot(oc, (float *)plane->normal) / d;
 		glm_vec4_copy((float *)plane->normal, out->normal);
+		glm_vec4_copy((float *)ray->origin, out->p);
+		glm_vec4_muladds((float *)ray->d, out->t, out->p);
 		return out->t >= 0;
 	}
 
 	return 0;
+}
+
+int
+hit_scene(const ray *ray, hit_info *out)
+{
+	size_t i;
+	int res;
+	hit_info cur;
+
+	out->t = INFINITY;
+
+	for (i = 0; i < scene.cur_shape; i++) {
+		switch (scene.shapes[i].type) {
+		case SPHERE:
+			res = hit_sphere(&scene.shapes[i].s, ray, &cur);
+			break;
+		case PLANE:
+			res = hit_plane(&scene.shapes[i].p, ray, &cur);
+			break;
+		}
+		if (res) {
+			if (cur.t < out->t && cur.t > epsilon) {
+				*out = cur;
+			}
+		}
+	}
+
+	return out->t != INFINITY;
 }

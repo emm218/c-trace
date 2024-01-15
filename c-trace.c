@@ -12,7 +12,7 @@
 
 #define DEFAULT_WIDTH	    640
 #define DEFAULT_HEIGHT	    480
-#define DEFAULT_SAMPLES	    30
+#define DEFAULT_SAMPLES	    64
 #define DEFAULT_MAX_BOUNCES 2
 
 typedef struct {
@@ -209,8 +209,6 @@ done:
 
 	(void)max_bounces;
 
-	glm_vec4_copy(scene.camera.eye, ray.origin);
-
 	for (y = 0; y < height; y++) {
 		for (x = 0; x < width; x++) {
 			pc = (color) { 0.0, 0.0, 0.0 };
@@ -223,6 +221,7 @@ done:
 				u /= (float)width;
 				v /= (float)height;
 
+				glm_vec4_copy(scene.camera.eye, ray.origin);
 				glm_vec4_copy(scene.camera.upper_left, ray.d);
 				glm_vec4_muladds(scene.camera.right, u, ray.d);
 				glm_vec4_muladds(scene.camera.down, v, ray.d);
@@ -265,48 +264,67 @@ static void
 color_2_pixel(color *color, pixel *out)
 {
 	glm_vec4_clamp((float *)color, 0.0, 1.0);
-	// out->r = sqrt(color.r) * 255;
-	// out->g = sqrt(color.g) * 255;
-	// out->b = sqrt(color.b) * 255;
-	out->r = color->r * 255;
-	out->g = color->g * 255;
-	out->b = color->b * 255;
+	out->r = sqrt(color->r) * 255;
+	out->g = sqrt(color->g) * 255;
+	out->b = sqrt(color->b) * 255;
+	// out->r = color->r * 255;
+	// out->g = color->g * 255;
+	// out->b = color->b * 255;
+}
+
+float
+rand_float(void)
+{
+	return rand() / (RAND_MAX + 1.0);
+}
+
+void
+rand_unit_vector(vec out)
+{
+	float x, y, z, d;
+	x = 1;
+	y = 1;
+	z = 1;
+	while ((d = x * x + y * y + z * z) > 1) {
+		x = rand_float() * 2 - 1;
+		y = rand_float() * 2 - 1;
+		z = rand_float() * 2 - 1;
+	}
+	out[0] = x;
+	out[1] = y;
+	out[2] = z;
+	glm_vec4_normalize(out);
 }
 
 static color
 ray_color(ray *ray, int bounces)
 {
-	int res;
-	float t_min;
-	size_t i;
-	hit_info cur, best;
+	hit_info best;
+	color ret;
 
-	(void)bounces;
-
-	t_min = INFINITY;
-
-	for (i = 0; i < scene.cur_shape; i++) {
-		switch (scene.shapes[i].type) {
-		case SPHERE:
-			res = hit_sphere(&scene.shapes[i].s, ray, &cur);
-			break;
-		case PLANE:
-			res = hit_plane(&scene.shapes[i].p, ray, &cur);
-			break;
-		}
-		if (res) {
-			if (cur.t < t_min) {
-				t_min = cur.t;
-				best = cur;
-			}
-		}
+	ret = (color) { 1.0, 1.0, 1.0 };
+loop:
+	if (!(hit_scene(ray, &best))) {
+		ret.r *= scene.ambient_light.r;
+		ret.g *= scene.ambient_light.g;
+		ret.b *= scene.ambient_light.b;
+		return ret;
 	}
 
-	if (t_min == INFINITY)
-		return scene.ambient_light;
+	glm_vec4_copy(best.p, ray->origin);
 
-	return (color) { 0.5 * best.normal[0] + 0.5, 0.5 * best.normal[1] + 0.5,
-		0.5 * best.normal[2] + 0.5 };
+	if (bounces <= 0) {
+		return (color) { 0.0, 0.0, 0.0 };
+	}
+
+	rand_unit_vector(ray->d);
+	glm_vec4_add(ray->d, best.normal, ray->d);
+
+	ret.r *= 0.5;
+	ret.g *= 0.5;
+	ret.b *= 0.5;
+	bounces--;
+	goto loop;
 }
 
 int
@@ -353,7 +371,7 @@ fprintf(out,
 "usage: c-trace [options] [file]\n"
 "\n"
 "OPTIONS:\n"
-"  -h, --help\t\t\tshow help and exit\n"
+"-h, --help\t\t\tshow help and exit\n"
 "  -v, --version\t\t\tshow version info and exit\n"
 "  -g, --geometry WIDTHxHEIGHT\toutput dimensions; default %dx%d\n"
 "  -s, --samples SAMPLES\t\tnumber of samples per pixel; default %d\n"

@@ -13,7 +13,7 @@ typedef struct {
 } __attribute__((aligned(16))) color;
 
 typedef struct {
-	char *meow;
+	// void (*scatter)(const ray *, ray *);
 } material;
 
 typedef struct {
@@ -75,6 +75,7 @@ typedef struct {
 
 typedef struct {
 	vec normal;
+	vec p;
 	material *material;
 	float t;
 } hit_info;
@@ -89,8 +90,11 @@ struct scene {
 
 extern struct scene scene;
 
+extern const float epsilon;
+
 int load_scene(FILE *, float);
 int hit_sphere(const sphere *, const ray *, hit_info *);
 int hit_plane(const plane *, const ray *, hit_info *);
+int hit_scene(const ray *, hit_info *);
 
 #endif /* SCENE_H */
