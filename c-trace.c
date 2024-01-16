@@ -309,7 +309,7 @@ ray_color(ray *ray, int bounces)
 	hit_info best;
 	color ret;
 	material *mat;
-	float c, u, v;
+	float c, u, v, n_dot_d;
 
 	ret = (color) { 1.0, 1.0, 1.0 };
 	for (; bounces > 0; bounces--) {
@@ -330,7 +330,12 @@ ray_color(ray *ray, int bounces)
 		switch (mat->type) {
 		case DIFFUSE:
 			rand_unit_vector(ray->d);
-			glm_vec4_add(ray->d, best.normal, ray->d);
+			n_dot_d = glm_vec4_dot(ray->d, best.normal);
+			if (n_dot_d < 0.0) {
+				glm_vec4_negate(ray->d);
+				n_dot_d = -n_dot_d;
+			}
+			color_muls(&ret, n_dot_d);
 			break;
 		case SPECULAR:
 			c = 2 * glm_vec4_dot(ray->d, best.normal);
