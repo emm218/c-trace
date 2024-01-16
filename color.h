@@ -8,5 +8,6 @@ typedef struct {
 void color_add(color *, color);
 void color_mul(color *, color);
 void color_muls(color *, float);
+color color_lerp(color, color, float);
 
 #endif /* COLOR_H */

@@ -23,3 +23,13 @@ color_muls(color *a, float s)
 	a->g *= s;
 	a->b *= s;
 }
+
+color
+color_lerp(color a, color b, float f)
+{
+	return (color) {
+		a.r * (1 - f) + b.r * f,
+		a.g * (1 - f) + b.g * f,
+		a.b * (1 - f) + b.b * f,
+	};
+}
