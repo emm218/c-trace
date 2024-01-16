@@ -26,6 +26,8 @@ int write_png_init(long, long);
 static float rad_inverse(unsigned int);
 static color ray_color(ray *, int);
 static void color_2_pixel(color *, pixel *);
+static float rand_float(void);
+static void rand_unit_vector(vec);
 
 char *prog_name;
 
@@ -51,7 +53,7 @@ main(int argc, char **argv)
 	int c, opt_idx, samples, max_bounces;
 	unsigned int i;
 	long x, y, width, height;
-	float u, v;
+	float u, v, u2, v2;
 	ray ray;
 	color pc;
 	pixel *row;
@@ -220,7 +222,15 @@ done:
 				u /= (float)width;
 				v /= (float)height;
 
+				u2 = (rand_float() - 0.5) * 0.02;
+				v2 = (rand_float() - 0.5) * 0.02;
+
 				glm_vec4_copy(scene.camera.eye, ray.origin);
+				glm_vec4_muladds(scene.camera.right, u2,
+				    ray.origin);
+				glm_vec4_muladds(scene.camera.down, v2,
+				    ray.origin);
+
 				glm_vec4_copy(scene.camera.upper_left, ray.d);
 				glm_vec4_muladds(scene.camera.right, u, ray.d);
 				glm_vec4_muladds(scene.camera.down, v, ray.d);
@@ -269,13 +279,13 @@ color_2_pixel(color *color, pixel *out)
 	// out->b = color->b * 255;
 }
 
-float
+static float
 rand_float(void)
 {
 	return rand() / (RAND_MAX + 1.0);
 }
 
-void
+static void
 rand_unit_vector(vec out)
 {
 	float x, y, z, d;
