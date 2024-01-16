@@ -19,6 +19,8 @@ sample_texture(texture *tex, float u, float v)
 		o = (y * tex->image.width + x) * n;
 		return (color) { img[o], img[o + 1], img[o + 2] };
 	case CHECKS:
-		return (color) { u, v, 0.5 };
+		x = tex->checks.scale * 2 * u;
+		y = tex->checks.scale * 2 * v;
+		return (x + y) % 2 ? tex->checks.c1 : tex->checks.c2;
 	}
 }

@@ -19,7 +19,7 @@ typedef struct {
 			float *data;
 		} image;
 		struct {
-			size_t u_scale, v_scale;
+			float scale;
 			color c1, c2;
 		} checks;
 		color solid;

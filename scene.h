@@ -35,6 +35,7 @@ typedef enum {
 typedef struct {
 	vec normal;
 	vec center;
+	vec u, v;
 	float d;
 } plane;
 

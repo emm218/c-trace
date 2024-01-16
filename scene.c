@@ -1,10 +1,8 @@
 #include <ctype.h>
 #include <errno.h>
+#include <stb_image.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
 
 #include "scene.h"
 #include "token.h"
@@ -12,6 +10,7 @@
 static int parse_camera(camera *, float);
 static int parse_color(color *);
 static int parse_material(material *);
+static int parse_plane(plane *);
 static int parse_texture(texture *);
 static int parse_vec(vec);
 
@@ -31,15 +30,18 @@ static material default_material = {
 	},
 };
 
+static vec vec_i = { 1.0, 0.0, 0.0, 0.0 };
+// static vec vec_j = { 0.0, 1.0, 0.0, 0.0 };
+// static vec vec_k = { 0.0, 0.0, 1.0, 0.0 };
+
 static const char *token_types[] = {
 	"'('",
 	"')'",
 	"KEYWORD",
 	"a shape type",
 	"a material type",
-	"a texture type",
-	"a color type",
 	"a number",
+	"a string",
 	"EOF",
 	"ERROR",
 };
@@ -282,13 +284,7 @@ loop:
 		scene.shapes[scene.cur_shape].material = cur_material;
 		switch (t.s) {
 		case PLANE:
-			PARSE(vec, scene.shapes[scene.cur_shape].p.normal);
-			glm_vec4_normalize(
-			    scene.shapes[scene.cur_shape].p.normal);
-			scene.shapes[scene.cur_shape].p.d = CONSUME_FLOAT();
-			glm_vec4_scale(scene.shapes[scene.cur_shape].p.normal,
-			    scene.shapes[scene.cur_shape].p.d,
-			    scene.shapes[scene.cur_shape].p.center);
+			PARSE(plane, &scene.shapes[scene.cur_shape].p);
 			break;
 		case SPHERE:
 			PARSE(vec, scene.shapes[scene.cur_shape].s.center);
@@ -363,7 +359,9 @@ parse_texture(texture *out)
 		} else if (t.k != KW_CHECKS)
 			goto fail;
 		out->type = CHECKS;
-		TODO();
+		out->checks.scale = CONSUME_FLOAT();
+		PARSE(color, &out->checks.c1);
+		PARSE(color, &out->checks.c2);
 		break;
 	case NUMBER:
 	solid:
@@ -421,6 +419,21 @@ parse_color(color *out)
 }
 
 static int
+parse_plane(plane *out)
+{
+
+	PARSE(vec, out->normal);
+	glm_vec4_normalize(out->normal);
+	out->d = CONSUME_FLOAT();
+	glm_vec4_scale(out->normal, out->d, out->center);
+	glm_vec3_cross(out->normal, vec_i, out->u);
+	glm_vec4_normalize(out->u);
+	glm_vec3_cross(out->normal, out->u, out->v);
+
+	return 0;
+}
+
+static int
 parse_vec(vec out)
 {
 	CONSUME(LPAREN);
@@ -455,7 +468,7 @@ hit_sphere(const sphere *sphere, const ray *ray, hit_info *out)
 int
 hit_plane(const plane *plane, const ray *ray, hit_info *out)
 {
-	vec oc;
+	vec oc, pc;
 	float d;
 
 	d = glm_vec4_dot((float *)plane->normal, (float *)ray->d);
@@ -466,6 +479,15 @@ hit_plane(const plane *plane, const ray *ray, hit_info *out)
 		glm_vec4_copy((float *)plane->normal, out->normal);
 		glm_vec4_copy((float *)ray->origin, out->p);
 		glm_vec4_muladds((float *)ray->d, out->t, out->p);
+
+		glm_vec4_sub(out->p, (float *)plane->center, pc);
+
+		out->u = glm_vec4_dot((float *)plane->u, pc);
+		out->v = glm_vec4_dot((float *)plane->v, pc);
+
+		out->u = out->u - floorf(out->u);
+		out->v = out->v - floorf(out->v);
+
 		return out->t >= 0;
 	}
 
@@ -495,9 +517,6 @@ hit_scene(const ray *ray, hit_info *out)
 			out->material = scene.shapes[i].material;
 		}
 	}
-
-	out->u = 0.0;
-	out->v = 0.0;
 
 	return out->t != INFINITY;
 }
