@@ -57,6 +57,7 @@ main(int argc, char **argv)
 	ray ray;
 	color pc;
 	pixel *row;
+	material *cur_mat, *next_mat;
 	FILE *input;
 
 	prog_name = argv[0];
@@ -248,6 +249,12 @@ done:
 	png_write_end(png_ptr, NULL);
 	png_destroy_write_struct(&png_ptr, &info_ptr);
 	free(row);
+	cur_mat = scene.materials->next;
+	while (cur_mat) {
+		next_mat = cur_mat->next;
+		free(cur_mat);
+		cur_mat = next_mat;
+	}
 	return 0;
 fail:
 	usage(stderr);
