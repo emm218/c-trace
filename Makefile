@@ -1,5 +1,5 @@
 CC=clang
-CFLAGS+=-Wall -Wextra -Werror -Wno-missing-field-initializers -Iinclude
+CFLAGS+=-Wall -Wextra -Werror -Wno-missing-field-initializers -Wno-unused-function -Iinclude
 LDLIBS+=-lpng -lm
 
 SRC:=$(wildcard *.c)

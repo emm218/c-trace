@@ -4,44 +4,28 @@
 #include <cglm/cglm.h>
 #include <stdio.h>
 
+#include "color.h"
+#include "texture.h"
+
 #define PRINT_VEC(s, v) fprintf(stderr, s "(%f %f %f)\n", v[0], v[1], v[2])
 
 typedef vec4 vec;
-
-typedef struct {
-	float r, g, b;
-} __attribute__((aligned(16))) color;
-
-typedef struct {
-	// void (*scatter)(const ray *, ray *);
-} material;
 
 typedef struct {
 	vec eye, down, right, upper_left;
 } camera;
 
 typedef enum {
-	AMBIENT,
-	DIRECTIONAL,
-	POINT,
-} light_type;
-
-typedef struct {
-	light_type type;
-	color color;
-	vec data;
-} light;
-
-typedef enum {
-	RGB,
-	BLACKBODY,
-} color_type;
-
-typedef enum {
 	DIFFUSE,
-	DIELECTRIC,
+	SPECULAR,
 	EMISSIVE,
 } material_type;
+
+typedef struct material_s {
+	struct material_s *next;
+	material_type type;
+	texture texture;
+} material;
 
 typedef enum {
 	PLANE,
@@ -76,16 +60,17 @@ typedef struct {
 typedef struct {
 	vec normal;
 	vec p;
+	float u, v;
 	material *material;
 	float t;
 } hit_info;
 
 struct scene {
 	camera camera;
-	color ambient_light;
-	light lights[4];
+	texture background;
 	shape shapes[4];
-	size_t cur_light, cur_shape;
+	material *materials;
+	size_t cur_shape;
 };
 
 extern struct scene scene;

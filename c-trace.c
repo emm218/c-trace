@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <getopt.h>
+#include <math.h>
 #include <png.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,7 +53,7 @@ main(int argc, char **argv)
 	long x, y, width, height;
 	float u, v;
 	ray ray;
-	color rc, pc;
+	color pc;
 	pixel *row;
 	FILE *input;
 
@@ -207,16 +208,14 @@ done:
 
 	write_png_init(width, height);
 
-	(void)max_bounces;
-
 	for (y = 0; y < height; y++) {
 		for (x = 0; x < width; x++) {
 			pc = (color) { 0.0, 0.0, 0.0 };
 			for (i = 0; i < (unsigned int)samples; i++) {
 				u = (float)x;
-				u += (float)i / (float)samples;
+				u += (float)(i + 1) / (float)(samples + 1);
 				v = (float)y;
-				v += rad_inverse(i);
+				v += rad_inverse(i + 1);
 
 				u /= (float)width;
 				v /= (float)height;
@@ -227,9 +226,7 @@ done:
 				glm_vec4_muladds(scene.camera.down, v, ray.d);
 				glm_vec4_sub(ray.d, ray.origin, ray.d);
 
-				rc = ray_color(&ray, max_bounces);
-				glm_vec4_add((float *)&rc, (float *)&pc,
-				    (float *)&pc);
+				color_add(&pc, ray_color(&ray, max_bounces));
 			}
 			glm_vec4_divs((float *)&pc, (float)samples,
 			    (float *)&pc);
@@ -301,30 +298,42 @@ ray_color(ray *ray, int bounces)
 {
 	hit_info best;
 	color ret;
+	material *mat;
+	float c, u, v;
 
 	ret = (color) { 1.0, 1.0, 1.0 };
-loop:
-	if (!(hit_scene(ray, &best))) {
-		ret.r *= scene.ambient_light.r;
-		ret.g *= scene.ambient_light.g;
-		ret.b *= scene.ambient_light.b;
-		return ret;
+	for (; bounces > 0; bounces--) {
+		if (!(hit_scene(ray, &best))) {
+			u = atan2f(ray->d[0], ray->d[2]) / (2 * GLM_PI);
+			v = acosf(ray->d[1] / glm_vec4_norm(ray->d)) / GLM_PI;
+			u += 0.5;
+
+			color_mul(&ret,
+			    sample_texture(&scene.background, u, v));
+			return ret;
+		}
+
+		mat = best.material;
+
+		color_mul(&ret, sample_texture(&mat->texture, best.u, best.v));
+
+		switch (mat->type) {
+		case DIFFUSE:
+			rand_unit_vector(ray->d);
+			glm_vec4_add(ray->d, best.normal, ray->d);
+			break;
+		case SPECULAR:
+			c = 2 * glm_vec4_dot(ray->d, best.normal);
+			glm_vec4_mulsubs(best.normal, c, ray->d);
+			break;
+		case EMISSIVE:
+			return ret;
+		}
+
+		glm_vec4_copy(best.p, ray->origin);
 	}
 
-	glm_vec4_copy(best.p, ray->origin);
-
-	if (bounces <= 0) {
-		return (color) { 0.0, 0.0, 0.0 };
-	}
-
-	rand_unit_vector(ray->d);
-	glm_vec4_add(ray->d, best.normal, ray->d);
-
-	ret.r *= 0.5;
-	ret.g *= 0.5;
-	ret.b *= 0.5;
-	bounces--;
-	goto loop;
+	return (color) { 0.0, 0.0, 0.0 };
 }
 
 int

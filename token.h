@@ -5,8 +5,10 @@
 
 typedef enum {
 	CAMERA,
-	LIGHT,
+	BACKGROUND,
 	MATERIAL,
+	BLACKBODY,
+	KW_CHECKS,
 } keyword;
 
 typedef struct {
@@ -15,10 +17,9 @@ typedef struct {
 		RPAREN,
 		KEYWORD,
 		SHAPE_TYPE,
-		LIGHT_TYPE,
 		MATERIAL_TYPE,
-		COLOR_TYPE,
 		NUMBER,
+		STRING,
 		END,
 		ERROR,
 	} type;
@@ -26,9 +27,8 @@ typedef struct {
 		float f;
 		keyword k;
 		shape_type s;
-		light_type l;
-		color_type c;
 		material_type m;
+		char *str;
 	};
 } token;
 

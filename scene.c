@@ -3,12 +3,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
 #include "scene.h"
 #include "token.h"
 
 static int parse_camera(camera *, float);
-static int parse_light(void);
 static int parse_color(color *);
+static int parse_material(material *);
+static int parse_texture(texture *);
 static int parse_vec(vec);
 
 #define TODO()                      \
@@ -19,13 +23,21 @@ static int parse_vec(vec);
 
 const float epsilon = 0.0001f;
 
+static material default_material = {
+	.type = DIFFUSE,
+	.texture = {
+		.type = SOLID,
+		.solid = { 0.5, 0.5, 0.5 },
+	},
+};
+
 static const char *token_types[] = {
 	"'('",
 	"')'",
 	"KEYWORD",
 	"a shape type",
-	"a light type",
 	"a material type",
+	"a texture type",
 	"a color type",
 	"a number",
 	"EOF",
@@ -125,6 +137,17 @@ loop:
 		return (token) { LPAREN };
 	case ')':
 		return (token) { RPAREN };
+	case '"':
+		tok = cur;
+		CONSUME_WHILE(*cur != '"' && *cur != '\n');
+		if (*cur == '\n') {
+			fprintf(stderr, "%s: unclosed string on line %zu\n",
+			    prog_name, line);
+			return (token) { ERROR };
+		}
+		*cur = 0;
+		cur++;
+		return (token) { STRING, .str = tok };
 	case '-':
 	case '0' ... '9':
 		tok = cur - 1;
@@ -153,6 +176,9 @@ loop:
 		fprintf(stderr, "%s: unknown token '%s' on line %zu\n",
 		    prog_name, tok, line);
 	}
+
+	fprintf(stderr, "%s: unexpected character %c on line %zu\n", prog_name,
+	    *(cur - 1), line);
 
 	return (token) { ERROR };
 }
@@ -203,6 +229,9 @@ loop:
 int
 load_scene(FILE *in, float aspect_ratio)
 {
+	int bg_done;
+	material *cur_material;
+
 	tok = cur = lim = buf;
 	eof = 0;
 	line = 1;
@@ -211,12 +240,11 @@ load_scene(FILE *in, float aspect_ratio)
 
 	prev_token.type = ERROR;
 
-	scene.ambient_light.r = INFINITY;
-	scene.ambient_light.g = INFINITY;
-	scene.ambient_light.b = INFINITY;
-
-	scene.cur_light = 0;
+	bg_done = 0;
 	scene.cur_shape = 0;
+
+	cur_material = &default_material;
+
 loop:
 	switch ((t = next_token()).type) {
 	case KEYWORD:
@@ -224,17 +252,34 @@ loop:
 		case CAMERA:
 			PARSE(camera, &scene.camera, aspect_ratio);
 			break;
-		case LIGHT:
-			PARSE(light);
+		case BACKGROUND:
+			if (bg_done) {
+				fprintf(stderr,
+				    "%s: second background definition on line %zu\n",
+				    prog_name, line);
+				return 1;
+			}
+			PARSE(texture, &scene.background);
+			bg_done = 1;
 			break;
 		case MATERIAL:
-			// TODO: actual materials handling
-			CONSUME(MATERIAL_TYPE);
+			cur_material->next = malloc(sizeof(material));
+			if (!cur_material->next) {
+				fprintf(stderr,
+				    "%s: memory allocation failed\n",
+				    prog_name);
+				return 1;
+			}
+			cur_material = cur_material->next;
+			PARSE(material, cur_material);
 			break;
+		default:
+			goto fail;
 		}
 		break;
 	case SHAPE_TYPE:
 		scene.shapes[scene.cur_shape].type = t.s;
+		scene.shapes[scene.cur_shape].material = cur_material;
 		switch (t.s) {
 		case PLANE:
 			PARSE(vec, scene.shapes[scene.cur_shape].p.normal);
@@ -253,10 +298,11 @@ loop:
 		scene.cur_shape++;
 		break;
 	default:
+	fail:
 		*cur = 0;
 		fprintf(stderr,
-		    "%s: on line %zu expected a keyword"
-		    " (light, material, camera) or a shape type, got '%s'\n",
+		    "%s: on line %zu expected a material, camera, shape or"
+		    " background definition, got '%s'\n",
 		    prog_name, line, tok);
 	case ERROR:
 		return 1;
@@ -299,26 +345,51 @@ parse_camera(camera *out, float aspect_ratio)
 }
 
 static int
-parse_light()
+parse_material(material *out)
 {
-	CONSUME(LIGHT_TYPE);
-	switch (t.l) {
-	case AMBIENT:
-		if (scene.ambient_light.r != INFINITY) {
+	CONSUME(MATERIAL_TYPE);
+	out->type = t.m;
+	PARSE(texture, &out->texture);
+	return 0;
+}
+
+static int
+parse_texture(texture *out)
+{
+	switch ((t = next_token()).type) {
+	case KEYWORD:
+		if (t.k == BLACKBODY) {
+			goto solid;
+		} else if (t.k != KW_CHECKS)
+			goto fail;
+		out->type = CHECKS;
+		TODO();
+		break;
+	case NUMBER:
+	solid:
+		prev_token = t;
+		out->type = SOLID;
+		PARSE(color, &out->solid);
+		break;
+	case STRING:
+		out->type = IMAGE;
+		out->image.data = stbi_loadf(t.str, &out->image.width,
+		    &out->image.height, &out->image.n_channels, 0);
+		if (out->image.data == NULL) {
 			fprintf(stderr,
-			    "%s: second ambient light declaration on line %zu\n",
-			    prog_name, line);
+			    "%s: image file '%s' is corrupt or missing\n",
+			    prog_name, t.str);
 			return 1;
 		}
-		PARSE(color, &scene.ambient_light);
 		break;
-	case DIRECTIONAL:
-	case POINT:
-		scene.lights[scene.cur_light].type = t.l;
-		PARSE(vec, scene.lights[scene.cur_light].data);
-		PARSE(color, &scene.lights[scene.cur_light].color);
-		scene.cur_light++;
-		break;
+	default:
+	fail:
+		*cur = 0;
+		fprintf(stderr,
+		    "%s: expected a texture on line %zu, got '%s'\n", prog_name,
+		    line, tok);
+	case ERROR:
+		return 1;
 	}
 	return 0;
 }
@@ -326,15 +397,25 @@ parse_light()
 static int
 parse_color(color *out)
 {
-	CONSUME(COLOR_TYPE);
-	switch (t.c) {
-	case RGB:
-		out->r = CONSUME_FLOAT();
+	t = next_token();
+	switch (t.type) {
+	case KEYWORD:
+		if (t.k != BLACKBODY)
+			goto fail;
+		TODO();
+		break;
+	case NUMBER:
+		out->r = t.f;
 		out->g = CONSUME_FLOAT();
 		out->b = CONSUME_FLOAT();
 		break;
-	case BLACKBODY:
-		TODO();
+	default:
+	fail:
+		*cur = 0;
+		fprintf(stderr, "%s: expected a color on line %zu, got '%s'\n",
+		    prog_name, line, tok);
+	case ERROR:
+		return 1;
 	}
 	return 0;
 }
@@ -409,12 +490,14 @@ hit_scene(const ray *ray, hit_info *out)
 			res = hit_plane(&scene.shapes[i].p, ray, &cur);
 			break;
 		}
-		if (res) {
-			if (cur.t < out->t && cur.t > epsilon) {
-				*out = cur;
-			}
+		if (res && cur.t < out->t && cur.t > epsilon) {
+			*out = cur;
+			out->material = scene.shapes[i].material;
 		}
 	}
+
+	out->u = 0.0;
+	out->v = 0.0;
 
 	return out->t != INFINITY;
 }
