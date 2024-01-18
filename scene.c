@@ -7,6 +7,8 @@
 #include "scene.h"
 #include "token.h"
 
+static void compute_bg_cdf(void);
+
 static int parse_camera(camera *, float);
 static int parse_color(color *);
 static int parse_material(material *);
@@ -29,7 +31,7 @@ static material default_material = {
 };
 
 static vec vec_i = { 1.0, 0.0, 0.0, 0.0 };
-// static vec vec_j = { 0.0, 1.0, 0.0, 0.0 };
+static vec vec_j = { 0.0, 1.0, 0.0, 0.0 };
 // static vec vec_k = { 0.0, 0.0, 1.0, 0.0 };
 
 static const char *token_types[] = {
@@ -259,12 +261,12 @@ loop:
 				    prog_name, line);
 				return 1;
 			}
-			PARSE(texture, &scene.background);
+			PARSE(texture, &scene.bg.tex);
+			compute_bg_cdf();
 			bg_done = 1;
 			break;
 		case MATERIAL:
 			cur_material->next = malloc(sizeof(material));
-			fprintf(stderr, "%p\n", cur_material->next);
 			if (!cur_material->next) {
 				fprintf(stderr,
 				    "%s: memory allocation failed\n",
@@ -427,6 +429,9 @@ parse_plane(plane *out)
 	out->d = CONSUME_FLOAT();
 	glm_vec4_scale(out->normal, out->d, out->center);
 	glm_vec3_cross(out->normal, vec_i, out->u);
+	if (glm_vec4_norm2(out->u) < epsilon) {
+		glm_vec3_cross(out->normal, vec_j, out->u);
+	}
 	glm_vec4_normalize(out->u);
 	glm_vec3_cross(out->normal, out->u, out->v);
 
@@ -442,6 +447,67 @@ parse_vec(vec out)
 	out[2] = CONSUME_FLOAT();
 	CONSUME(RPAREN);
 	return 0;
+}
+
+static void
+compute_bg_cdf()
+{
+	size_t x, y, width, height;
+	float u, v, total, row_total, sample;
+
+	switch (scene.bg.tex.type) {
+	case CHECKS:
+		width = scene.bg.tex.checks.scale;
+		height = scene.bg.tex.checks.scale;
+		break;
+	case SOLID:
+		width = 1;
+		height = 1;
+		break;
+	case IMAGE:
+		width = scene.bg.tex.image.width;
+		height = scene.bg.tex.image.height;
+		break;
+	}
+
+	scene.bg.w = width;
+	scene.bg.h = height;
+
+	scene.bg.pdf = malloc(sizeof(float) * width * height);
+	scene.bg.cdf_c = malloc(sizeof(float) * width * height);
+	scene.bg.cdf_m = malloc(sizeof(float) * width);
+	if (!scene.bg.cdf_c || !scene.bg.cdf_m || !scene.bg.pdf) {
+		fprintf(stderr, "%s: malloc failed\n", prog_name);
+		exit(1);
+	}
+
+	total = 0.0;
+
+	for (y = 0; y < height; y++) {
+		v = ((float)y + 0.5) / height;
+		row_total = 0.0;
+		for (x = 0; x < width; x++) {
+			u = ((float)x + 0.5) / width;
+			sample = sample_intensity(&scene.bg.tex, u, v) *
+			    sinf(GLM_PI * v);
+			scene.bg.pdf[y * width + x] = sample;
+			row_total += sample;
+			scene.bg.cdf_c[y * width + x] = row_total;
+		}
+		for (x = 0; x < width; x++) {
+			scene.bg.cdf_c[y * width + x] /= row_total;
+		}
+		total += row_total;
+		scene.bg.cdf_m[y] = total;
+	}
+	for (y = 0; y < height; y++) {
+		scene.bg.cdf_m[y] /= total;
+	}
+	for (y = 0; y < height; y++) {
+		for (x = 0; x < width; x++) {
+			scene.bg.pdf[y * width + x] /= total;
+		}
+	}
 }
 
 int

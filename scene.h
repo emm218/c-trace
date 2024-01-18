@@ -17,7 +17,13 @@ typedef struct {
 
 struct scene {
 	camera camera;
-	texture background;
+	struct {
+		texture tex;
+		float *cdf_m;
+		float *cdf_c;
+		float *pdf;
+		long w, h;
+	} bg;
 	shape shapes[4];
 	material *materials;
 	size_t cur_shape;

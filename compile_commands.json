@@ -6,6 +6,7 @@
       "-Wextra",
       "-Werror",
       "-Wno-missing-field-initializers",
+      "-Wno-unused-function",
       "-Iinclude",
       "-g",
       "-c",
@@ -24,6 +25,7 @@
       "-Wextra",
       "-Werror",
       "-Wno-missing-field-initializers",
+      "-Wno-unused-function",
       "-Iinclude",
       "-g",
       "-c",
@@ -34,24 +36,5 @@
     "directory": "/home/anon/projects/c-trace",
     "file": "/home/anon/projects/c-trace/scene.c",
     "output": "/home/anon/projects/c-trace/scene.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/clang",
-      "-Wall",
-      "-Wextra",
-      "-Werror",
-      "-Wno-missing-field-initializers",
-      "-Iinclude",
-      "-g",
-      "-Wno-unused-parameter",
-      "-c",
-      "-o",
-      "keywords.o",
-      "keywords.c"
-    ],
-    "directory": "/home/anon/projects/c-trace",
-    "file": "/home/anon/projects/c-trace/keywords.c",
-    "output": "/home/anon/projects/c-trace/keywords.o"
   }
 ]

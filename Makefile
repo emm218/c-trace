@@ -1,5 +1,5 @@
 CC=clang
-CFLAGS+=-Wall -Wextra -Werror -Wno-missing-field-initializers -Wno-unused-function -Iinclude
+CFLAGS+=-Wall -Wextra -Werror -Wno-missing-field-initializers -Iinclude
 LDLIBS+=-lpng -lm
 
 SRC:=$(wildcard *.c)
@@ -11,6 +11,8 @@ release: CFLAGS+=-O2
 release: clean keywords.c c-trace
 
 c-trace: $(SRC:.c=.o) keywords.o
+
+c-trace.o: CFLAGS+=-Wno-unused-function -Wno-unused-label 
 
 keywords.c: keywords.gperf token.h scene.h
 	gperf $< | clang-format > $@

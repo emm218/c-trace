@@ -27,5 +27,6 @@ typedef struct {
 } texture;
 
 color sample_texture(texture *, float, float);
+float sample_intensity(texture *, float, float);
 
 #endif /* TEXTURE_H */

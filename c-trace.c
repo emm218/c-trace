@@ -11,8 +11,8 @@
 
 #define VERSION "0.1"
 
-#define DEFAULT_WIDTH	    640
-#define DEFAULT_HEIGHT	    480
+#define DEFAULT_WIDTH	    600
+#define DEFAULT_HEIGHT	    600
 #define DEFAULT_SAMPLES	    64
 #define DEFAULT_MAX_BOUNCES 2
 
@@ -26,6 +26,7 @@ int write_png_init(long, long);
 static float rad_inverse(unsigned int);
 static color ray_color(ray *, int);
 static void color_2_pixel(color *, pixel *);
+static void color_2_pixel_linear(color *, pixel *);
 static float rand_float(void);
 static void rand_unit_vector(vec);
 
@@ -105,13 +106,6 @@ main(int argc, char **argv)
 	if (version_flag) {
 		printf("c-trace version " VERSION "\n");
 		return 0;
-	}
-
-	if (isatty(fileno(stdout))) {
-		fprintf(stderr,
-		    "%s: please redirect stdout to a file or another program\n",
-		    argv[0]);
-		return 1;
 	}
 
 	// parse geometry string
@@ -209,7 +203,28 @@ done:
 	if ((row = malloc(sizeof(*row) * width)) == NULL)
 		return 1; // oh nooooo
 
+	if (isatty(fileno(stdout))) {
+		fprintf(stderr,
+		    "%s: please redirect stdout to a file or another program\n",
+		    argv[0]);
+		return 1;
+	}
+
 	write_png_init(width, height);
+
+	// for (y = 0; y < height; y++) {
+	// 	for (x = 0; x < width; x++) {
+	// 		pc = (color) {
+	// 			scene.bg.cdf_m[y],
+	// 			scene.bg.cdf_c[y * width + x],
+	// 			scene.bg.pdf[y * width + x],
+	// 		};
+	// 		color_2_pixel_linear(&pc, &row[x]);
+	// 	}
+	// 	png_write_row(png_ptr, (unsigned char *)row);
+	// }
+	//
+	// goto cleanup;
 
 	for (y = 0; y < height; y++) {
 		for (x = 0; x < width; x++) {
@@ -225,6 +240,9 @@ done:
 
 				u2 = (rand_float() - 0.5) * 0.02;
 				v2 = (rand_float() - 0.5) * 0.02;
+
+				(void)u2;
+				(void)v2;
 
 				glm_vec4_copy(scene.camera.eye, ray.origin);
 				glm_vec4_muladds(scene.camera.right, u2,
@@ -245,7 +263,7 @@ done:
 		}
 		png_write_row(png_ptr, (unsigned char *)row);
 	}
-
+cleanup:
 	png_write_end(png_ptr, NULL);
 	png_destroy_write_struct(&png_ptr, &info_ptr);
 	free(row);
@@ -281,9 +299,15 @@ color_2_pixel(color *color, pixel *out)
 	out->r = sqrt(color->r) * 255;
 	out->g = sqrt(color->g) * 255;
 	out->b = sqrt(color->b) * 255;
-	// out->r = color->r * 255;
-	// out->g = color->g * 255;
-	// out->b = color->b * 255;
+}
+
+static void
+color_2_pixel_linear(color *color, pixel *out)
+{
+	glm_vec4_clamp((float *)color, 0.0, 1.0);
+	out->r = color->r * 255;
+	out->g = color->g * 255;
+	out->b = color->b * 255;
 }
 
 static float
@@ -310,13 +334,62 @@ rand_unit_vector(vec out)
 	glm_vec4_normalize(out);
 }
 
+static long
+find(float f, float *list, long l)
+{
+	long i, j, p, n;
+
+	n = 0;
+	i = 0;
+	j = l;
+
+	(void)n;
+
+	while (i < j - 1) {
+		p = i + (j - i) / 2;
+		n++;
+		if (list[p - 1] > f) {
+			j = p;
+		} else {
+			i = p;
+		}
+	}
+
+	return i;
+}
+
+static float
+importance_sample_diffuse(vec d)
+{
+	float u, v, phi, theta;
+	long x, y, w, h;
+
+	w = scene.bg.w;
+	h = scene.bg.h;
+
+	u = rand_float();
+	v = rand_float();
+
+	y = find(v, scene.bg.cdf_m, h);
+	x = find(u, scene.bg.cdf_c + y * w, w);
+
+	phi = (x + rand_float()) / w * 2 * GLM_PI;
+	theta = -(y + rand_float()) / h * GLM_PI;
+
+	d[0] = sinf(theta) * cosf(phi);
+	d[2] = sinf(theta) * sinf(phi);
+	d[1] = cosf(theta);
+
+	return scene.bg.pdf[y * w + x] * (w * h);
+}
+
 static color
 ray_color(ray *ray, int bounces)
 {
 	hit_info best;
 	color ret;
 	material *mat;
-	float c, u, v, n_dot_d;
+	float c, u, v, n_dot_d, weight;
 
 	ret = (color) { 1.0, 1.0, 1.0 };
 	for (; bounces > 0; bounces--) {
@@ -325,8 +398,7 @@ ray_color(ray *ray, int bounces)
 			v = acosf(ray->d[1] / glm_vec4_norm(ray->d)) / GLM_PI;
 			u += 0.5;
 
-			color_mul(&ret,
-			    sample_texture(&scene.background, u, v));
+			color_mul(&ret, sample_texture(&scene.bg.tex, u, v));
 			return ret;
 		}
 
@@ -336,13 +408,21 @@ ray_color(ray *ray, int bounces)
 
 		switch (mat->type) {
 		case DIFFUSE:
-			rand_unit_vector(ray->d);
+			(void)weight;
+			/* rand_unit_vector(ray->d);
 			n_dot_d = glm_vec4_dot(ray->d, best.normal);
 			if (n_dot_d < 0.0) {
 				glm_vec4_negate(ray->d);
 				n_dot_d = -n_dot_d;
 			}
-			color_muls(&ret, n_dot_d);
+			color_muls(&ret, n_dot_d); */
+
+			weight = importance_sample_diffuse(ray->d);
+			n_dot_d = glm_vec4_dot(ray->d, best.normal);
+			if (n_dot_d < 0.0) {
+				return (color) { 0.0, 0.0, 0.0 };
+			}
+			color_muls(&ret, n_dot_d * weight);
 			break;
 		case SPECULAR:
 			c = 2 * glm_vec4_dot(ray->d, best.normal);
