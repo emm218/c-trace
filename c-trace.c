@@ -9,7 +9,7 @@
 
 #include "scene.h"
 
-#define VERSION "0.1"
+#define VERSION "0.2"
 
 #define DEFAULT_WIDTH	    600
 #define DEFAULT_HEIGHT	    600
