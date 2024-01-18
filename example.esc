@@ -1,0 +1,19 @@
+camera
+(0 0.6 2.5) # eye
+(0 0.4 0.9) # look at
+(0 1 0)     # up
+90          # fov
+
+background "./autumn_field_4k.hdr"
+
+material diffuse checks 1.0 0.9 0.9 0.9 0.01 0.01 0.01
+plane (0 1 0) 0
+
+material specular 0.8 0.1 0.1
+sphere (0.5 0.4 0.9) 0.4
+
+material diffuse 0.0 0.0 0.8
+sphere (-0.5 0.4 0) 0.4
+
+material diffuse 0.0 0.5 0.0
+sphere (0.0 0.8 -2) 0.8
